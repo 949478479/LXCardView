@@ -65,11 +65,11 @@
     self.maxIndexOfVisibleCard = countOfVisibleCards - 1;
 }
 
-- (void)removeTopCardWithDirection:(LXCardViewRemoveTopCardDirection)direction
+- (void)removeTopCardOnDirection:(LXCardViewDirection)direction
 {
     UIView *topCardView = self.visibleCards[0];
 
-    CGFloat factor = (direction == LXCardViewRemoveTopCardDirectionLeft) ? -1.0 : 1.0;
+    CGFloat factor = (direction ==LXCardViewDirectionLeft) ? -1.0 : 1.0;
     CGFloat horizontalDistance = (CGRectGetWidth(self.bounds) + CGRectGetWidth(topCardView.bounds)) / 2;
 
     CGPoint finalPosition;
@@ -96,8 +96,10 @@
     } completion:^(BOOL finished) {
         [self.visibleCards removeObjectAtIndex:0];
         [topCard removeFromSuperview];
-        if ([self.delegate respondsToSelector:@selector(cardView:didRemoveTopCard:atIndex:)]) {
-            [self.delegate cardView:self didRemoveTopCard:topCard atIndex:self.indexOfTopCard];
+        if ([self.delegate respondsToSelector:@selector(cardView:didRemoveTopCard:onDirection:atIndex:)]) {
+            LXCardViewDirection direction = (topCard.center.x > CGRectGetMidX(self.bounds)) ?
+            LXCardViewDirectionRight : LXCardViewDirectionLeft;
+            [self.delegate cardView:self didRemoveTopCard:topCard onDirection:direction atIndex:self.indexOfTopCard];
         }
         !completion ?: completion();
     }];

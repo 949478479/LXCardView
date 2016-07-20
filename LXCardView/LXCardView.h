@@ -11,9 +11,9 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-typedef NS_ENUM(NSUInteger, LXCardViewRemoveTopCardDirection) {
-    LXCardViewRemoveTopCardDirectionLeft,
-    LXCardViewRemoveTopCardDirectionRight,
+typedef NS_ENUM(NSUInteger, LXCardViewDirection) {
+    LXCardViewDirectionLeft,
+    LXCardViewDirectionRight,
 };
 
 @protocol LXCardViewDelegate <NSObject>
@@ -32,8 +32,7 @@ typedef NS_ENUM(NSUInteger, LXCardViewRemoveTopCardDirection) {
 - (void)topCard:(UIView *)card didChangeCenterOffset:(CGPoint)offset inCardView:(LXCardView *)cardView;
 
 /// 顶层卡片被移除
-- (void)cardView:(LXCardView *)cardView didRemoveTopCard:(UIView *)card atIndex:(NSUInteger)index;
-
+- (void)cardView:(LXCardView *)cardView didRemoveTopCard:(UIView *)card onDirection:(LXCardViewDirection)direction atIndex:(NSUInteger)index;
 @end
 
 
@@ -50,8 +49,8 @@ typedef NS_ENUM(NSUInteger, LXCardViewRemoveTopCardDirection) {
 /// 刷新数据，需手动调用
 - (void)reloadData;
 
-/// 沿指定方向移除顶层卡片，不会触发卡片位置变化的代理方法
-- (void)removeTopCardWithDirection:(LXCardViewRemoveTopCardDirection)direction;
+/// 沿指定方向移除顶层卡片，不会触发卡片位置变化的代理方法，但会触发卡片被移除的代理方法
+- (void)removeTopCardOnDirection:(LXCardViewDirection)direction;
 
 @end
 

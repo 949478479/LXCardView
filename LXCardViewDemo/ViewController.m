@@ -48,10 +48,10 @@
 
     __weak LXCardView *weakCardView = cardView;
     card.addAction = ^{
-        [weakCardView removeTopCardWithDirection:LXCardViewRemoveTopCardDirectionRight];
+        [weakCardView removeTopCardOnDirection:LXCardViewDirectionRight];
     };
     card.removeAction = ^{
-        [weakCardView removeTopCardWithDirection:LXCardViewRemoveTopCardDirectionLeft];
+        [weakCardView removeTopCardOnDirection:LXCardViewDirectionLeft];
     };
     
     return card;
@@ -69,9 +69,9 @@
     }
 }
 
-- (void)cardView:(LXCardView *)cardView didRemoveTopCard:(UIView *)card atIndex:(NSUInteger)index
+- (void)cardView:(LXCardView *)cardView didRemoveTopCard:(UIView *)card onDirection:(LXCardViewDirection)direction atIndex:(NSUInteger)index
 {
-    NSLog(@"%@ - %@", card, @(index));
+    NSLog(@"%@ - %@ - %@", card, (direction == LXCardViewDirectionLeft) ? @"left" : @"right", @(index));
 }
 
 @end
