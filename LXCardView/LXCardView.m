@@ -13,6 +13,7 @@
 @property (nonatomic) NSUInteger indexOfTopCard;
 @property (nonatomic) NSUInteger maxIndexOfVisibleCard;
 @property (nonatomic) NSMutableArray<UIView *> *visibleCards;
+@property (nonatomic) UIPanGestureRecognizer *panGestureRecognizer;
 @end
 
 @implementation LXCardView
@@ -42,9 +43,8 @@
     _maxCountOfVisibleCards = 3;
     _visibleCards = [NSMutableArray new];
 
-    [self addGestureRecognizer:
-     [[UIPanGestureRecognizer alloc] initWithTarget:self
-                                             action:@selector(_panGestureHandle:)]];
+    _panGestureRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(_panGestureHandle:)];
+    [self addGestureRecognizer:_panGestureRecognizer];
 }
 
 #pragma mark - 添加移除卡片
@@ -184,6 +184,13 @@
 }
 
 #pragma mark - 拖拽处理
+
+- (void)setEnablePan:(BOOL)enablePan
+{
+    _enablePan = enablePan;
+
+    self.panGestureRecognizer.enabled = enablePan;
+}
 
 - (void)_panGestureHandle:(UIPanGestureRecognizer *)panGR
 {

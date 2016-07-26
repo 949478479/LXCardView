@@ -38,6 +38,9 @@ typedef NS_ENUM(NSUInteger, LXCardViewDirection) {
 
 @interface LXCardView : UIView
 
+/// 是否允许拖拽卡片，默认允许
+@property (nonatomic) BOOL enablePan;
+
 /// 顶层卡片在水平方向上的最大偏移量，若不设置，则以顶层卡片宽度一半来计算
 @property (nonatomic) CGFloat maxOffsetXForTopCard;
 
