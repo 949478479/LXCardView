@@ -51,6 +51,7 @@
 
 - (void)reloadData
 {
+    [self.visibleCards makeObjectsPerformSelector:@selector(removeFromSuperview)];
     [self.visibleCards removeAllObjects];
 
     self.numberOfCards = [self.delegate numberOfCardsInCardView:self];
