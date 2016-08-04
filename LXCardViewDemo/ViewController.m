@@ -29,7 +29,10 @@
     [self.cardView.trailingAnchor constraintEqualToAnchor:window.trailingAnchor].active = YES;
     [self.cardView.bottomAnchor constraintEqualToAnchor:window.bottomAnchor].active = YES;
     [self.cardView.topAnchor constraintEqualToAnchor:window.topAnchor constant:64].active = YES;
+}
 
+- (IBAction)reloadData:(UIBarButtonItem *)sender
+{
     [self.cardView reloadData];
 }
 
@@ -71,7 +74,12 @@
 
 - (void)cardView:(LXCardView *)cardView didRemoveTopCard:(UIView *)card onDirection:(LXCardViewDirection)direction atIndex:(NSUInteger)index
 {
-    NSLog(@"%@ - %@ - %@", card, (direction == LXCardViewDirectionLeft) ? @"left" : @"right", @(index));
+    NSLog(@"%@ - %@ - %@ - %@", @(__FUNCTION__), card, (direction == LXCardViewDirectionLeft) ? @"left" : @"right", @(index));
+}
+
+- (void)cardView:(LXCardView *)cardView didDisplayTopCard:(UIView *)card atIndex:(NSUInteger)index
+{
+    NSLog(@"%@ - %@ - %@", @(__FUNCTION__), card, @(index));
 }
 
 @end

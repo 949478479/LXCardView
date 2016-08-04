@@ -56,18 +56,34 @@
 
     self.numberOfCards = [self.delegate numberOfCardsInCardView:self];
     NSUInteger countOfVisibleCards = MIN(self.numberOfCards, self.maxCountOfVisibleCards);
-    NSAssert(countOfVisibleCards > 0, @"可见卡片数量必须大于0");
+    NSAssert(countOfVisibleCards >= 0, @"可见卡片数量必须大于等于0");
 
-    for (NSUInteger idx = 0; idx < countOfVisibleCards; ++idx) {
-        [self _insertCardAtIndex:idx];
+    if (countOfVisibleCards > 0) {
+
+        for (NSUInteger idx = 0; idx < countOfVisibleCards; ++idx) {
+            [self _insertCardAtIndex:idx];
+        }
+
+        self.indexOfTopCard = 0;
+        self.maxIndexOfVisibleCard = countOfVisibleCards - 1;
+
+        if (self.enablePan) {
+            self.panGestureRecognizer.enabled = YES;
+        }
+
+        if ([self.delegate respondsToSelector:@selector(cardView:didDisplayTopCard:atIndex:)]) {
+            [self.delegate cardView:self didDisplayTopCard:self.visibleCards[0] atIndex:0];
+        }
+
+    } else {
+        self.panGestureRecognizer.enabled = NO;
     }
-
-    self.indexOfTopCard = 0;
-    self.maxIndexOfVisibleCard = countOfVisibleCards - 1;
 }
 
 - (void)removeTopCardOnDirection:(LXCardViewDirection)direction
 {
+    NSAssert(self.visibleCards.count > 0, @"可见卡片数量为零时无法移除卡片");
+
     UIView *topCardView = self.visibleCards[0];
 
     CGFloat factor = (direction ==LXCardViewDirectionLeft) ? -1.0 : 1.0;
@@ -129,6 +145,10 @@
         }
         [self _configureVisibleCardsByAnimationWithCompletion:^{
             self.userInteractionEnabled = YES;
+            if (self.visibleCards.count > 0 &&
+                [self.delegate respondsToSelector:@selector(cardView:didDisplayTopCard:atIndex:)]) {
+                [self.delegate cardView:self didDisplayTopCard:self.visibleCards[0] atIndex:self.indexOfTopCard];
+            }
         }];
     }];
 }

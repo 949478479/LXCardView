@@ -20,7 +20,7 @@ typedef NS_ENUM(NSUInteger, LXCardViewDirection) {
 
 @required
 
-/// 卡片总数量
+/// 卡片总数量，若返回零，则不显示任何卡片
 - (NSUInteger)numberOfCardsInCardView:(LXCardView *)cardView;
 
 /// 索引对应的卡片所对应的视图
@@ -33,6 +33,10 @@ typedef NS_ENUM(NSUInteger, LXCardViewDirection) {
 
 /// 顶层卡片被移除
 - (void)cardView:(LXCardView *)cardView didRemoveTopCard:(UIView *)card onDirection:(LXCardViewDirection)direction atIndex:(NSUInteger)index;
+
+/// 顶层卡片完全显示
+- (void)cardView:(LXCardView *)cardView didDisplayTopCard:(UIView *)card atIndex:(NSUInteger)index;
+
 @end
 
 
