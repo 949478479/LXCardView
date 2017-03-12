@@ -40,7 +40,7 @@
 
 - (NSUInteger)numberOfCardsInCardView:(LXCardView *)cardView
 {
-    return 10;
+    return 5;
 }
 
 - (UIView *)cardView:(LXCardView *)cardView viewForCardAtIndex:(NSUInteger)index
@@ -49,37 +49,61 @@
 
     LXTestCardView *card = [LXTestCardView cardView];
 
+	card.frame = ({
+		CGSize screenSize = [UIScreen mainScreen].bounds.size;
+		CGRect frame = card.frame;
+		frame.size = CGSizeMake(screenSize.width - 40, screenSize.height - 64 - 80);
+		frame;
+	});
+
     __weak LXCardView *weakCardView = cardView;
     card.addAction = ^{
-        [weakCardView removeTopCardOnDirection:LXCardViewDirectionRight];
+        [weakCardView throwTopCardOnDirection:LXCardViewDirectionTop angle:M_PI_2 / 2];
     };
     card.removeAction = ^{
-        [weakCardView removeTopCardOnDirection:LXCardViewDirectionLeft];
+        [weakCardView throwTopCardOnDirection:LXCardViewDirectionBottom angle:M_PI_2 * 3 / 2];
     };
-    
+
+	card.indexLabel.text = [NSString stringWithFormat:@"%lu", index];
+
     return card;
 }
 
-- (void)topCard:(UIView *)card didChangeCenterOffset:(CGPoint)offset inCardView:(LXCardView *)cardView
+- (void)cardView:(LXCardView *)cardView didDisplayTopCard:(UIView *)topCard
 {
-    if (offset.x > 0) {
-        [(LXTestCardView *)card addLabel].alpha = offset.x / (CGRectGetWidth(card.bounds) / 2);
-    } else if (offset.x < 0) {
-        [(LXTestCardView *)card removeLabel].alpha = -offset.x / (CGRectGetWidth(card.bounds) / 2);
+	NSLog(@"%@ - %@", @(__FUNCTION__), @([cardView indexForTopCard]));
+}
+
+- (void)cardView:(LXCardView *)cardView didDragTopCard:(LXTestCardView *)topCard anchorPoint:(CGPoint)anchorPoint translation:(CGPoint)translation
+{
+	CGFloat alpha = fmax(0, fmin(1, (fabs(translation.x) / CGRectGetWidth(topCard.bounds) * 2)));
+
+    if (translation.x > 0) {
+		[(LXTestCardView *)topCard addLabel].alpha = alpha;
+    } else if (translation.x < 0) {
+        [(LXTestCardView *)topCard removeLabel].alpha = alpha;
     } else {
-        [(LXTestCardView *)card addLabel].alpha = 0;
-        [(LXTestCardView *)card removeLabel].alpha = 0;
+        [(LXTestCardView *)topCard addLabel].alpha = 0;
+        [(LXTestCardView *)topCard removeLabel].alpha = 0;
     }
 }
 
-- (void)cardView:(LXCardView *)cardView didRemoveTopCard:(UIView *)card onDirection:(LXCardViewDirection)direction atIndex:(NSUInteger)index
+- (void)cardView:(LXCardView *)cardView willResetTopCard:(UIView *)topCard
 {
-    NSLog(@"%@ - %@ - %@ - %@", @(__FUNCTION__), card, (direction == LXCardViewDirectionLeft) ? @"left" : @"right", @(index));
+	NSLog(@"%@ - %@", @(__FUNCTION__), @([cardView indexForTopCard]));
+
+	[(LXTestCardView *)topCard addLabel].alpha = 0;
+	[(LXTestCardView *)topCard removeLabel].alpha = 0;
 }
 
-- (void)cardView:(LXCardView *)cardView didDisplayTopCard:(UIView *)card atIndex:(NSUInteger)index
+- (void)cardView:(LXCardView *)cardView didResetTopCard:(UIView *)topCard
 {
-    NSLog(@"%@ - %@ - %@", @(__FUNCTION__), card, @(index));
+	NSLog(@"%@ - %@", @(__FUNCTION__), @([cardView indexForTopCard]));
+}
+
+- (void)cardView:(LXCardView *)cardView didThrowTopCard:(UIView *)topCard
+{
+    NSLog(@"%@ - %@", @(__FUNCTION__), @([cardView indexForTopCard]));
 }
 
 @end

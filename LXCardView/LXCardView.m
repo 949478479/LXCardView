@@ -8,12 +8,22 @@
 
 #import "LXCardView.h"
 
-@interface LXCardView ()
+static CGFloat const kThrowingSpeedThreshold = 1000;
+static NSTimeInterval const kThrowAnimationDuration = 0.25;
+static NSTimeInterval const kResetAnimationDuration = 0.5;
+static NSTimeInterval const kInsertAnimationDuration = 0.5;
+
+@interface LXCardView () <UIDynamicAnimatorDelegate>
+
 @property (nonatomic) NSUInteger numberOfCards;
-@property (nonatomic) NSUInteger indexOfTopCard;
-@property (nonatomic) NSUInteger maxIndexOfVisibleCard;
+@property (nonatomic) NSUInteger indexForTopCard;
+@property (nonatomic) NSUInteger maxIndexForVisibleCard;
 @property (nonatomic) NSMutableArray<UIView *> *visibleCards;
+
+@property (nonatomic) UIDynamicAnimator *dynamicAnimator;
+@property (nonatomic) UIAttachmentBehavior *attachmentBehavior;
 @property (nonatomic) UIPanGestureRecognizer *panGestureRecognizer;
+
 @end
 
 @implementation LXCardView
@@ -40,14 +50,18 @@
 
 - (void)_commonInit
 {
+	_dragEnabled = YES;
     _maxCountOfVisibleCards = 3;
     _visibleCards = [NSMutableArray new];
 
     _panGestureRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(_panGestureHandle:)];
     [self addGestureRecognizer:_panGestureRecognizer];
+
+	_dynamicAnimator = [[UIDynamicAnimator alloc] initWithReferenceView:self];
+	_dynamicAnimator.delegate = self;
 }
 
-#pragma mark - 添加移除卡片
+#pragma mark - 刷新数据
 
 - (void)reloadData
 {
@@ -56,239 +70,346 @@
 
     self.numberOfCards = [self.delegate numberOfCardsInCardView:self];
     NSUInteger countOfVisibleCards = MIN(self.numberOfCards, self.maxCountOfVisibleCards);
-    NSAssert(countOfVisibleCards >= 0, @"可见卡片数量必须大于等于0");
 
-    if (countOfVisibleCards > 0) {
-
-        for (NSUInteger idx = 0; idx < countOfVisibleCards; ++idx) {
-            [self _insertCardAtIndex:idx];
-        }
-
-        self.indexOfTopCard = 0;
-        self.maxIndexOfVisibleCard = countOfVisibleCards - 1;
-
-        if (self.enablePan) {
-            self.panGestureRecognizer.enabled = YES;
-        }
-
-        if ([self.delegate respondsToSelector:@selector(cardView:didDisplayTopCard:atIndex:)]) {
-            [self.delegate cardView:self didDisplayTopCard:self.visibleCards[0] atIndex:0];
-        }
-
-    } else {
-        self.panGestureRecognizer.enabled = NO;
+    if (countOfVisibleCards == 0) {
+		self.panGestureRecognizer.enabled = NO;
+		return;
     }
+
+	for (NSUInteger idx = 0; idx < countOfVisibleCards; ++idx) {
+		[self _setupConstraintsForCard:[self _dequeueCardAndInsertAtIndex:idx]];
+	}
+
+	self.indexForTopCard = 0;
+	self.maxIndexForVisibleCard = countOfVisibleCards - 1;
+	self.panGestureRecognizer.enabled = self.isDragEnabled;
+
+	[self _configureVisibleCard];
+
+	if ([self.delegate respondsToSelector:@selector(cardView:didDisplayTopCard:)]) {
+		[self.delegate cardView:self didDisplayTopCard:[self topCard]];
+	}
 }
 
-- (void)removeTopCardOnDirection:(LXCardViewDirection)direction
+#pragma mark - 创建卡片
+
+- (UIView *)_dequeueCardAndInsertAtIndex:(NSUInteger)index
 {
-    NSAssert(self.visibleCards.count > 0, @"可见卡片数量为零时无法移除卡片");
-
-    UIView *topCardView = self.visibleCards[0];
-
-    CGFloat factor = (direction ==LXCardViewDirectionLeft) ? -1.0 : 1.0;
-    CGFloat horizontalDistance = (CGRectGetWidth(self.bounds) + CGRectGetWidth(topCardView.bounds)) / 2;
-
-    CGPoint finalPosition;
-    finalPosition.y = CGRectGetMidY(self.bounds) - 100.0;
-    finalPosition.x = CGRectGetMidX(self.bounds) + factor * horizontalDistance;
-
-    [self _updateTopCardWithFinalPosition:finalPosition];
-}
-
-- (void)_insertCardAtIndex:(NSUInteger)index
-{
-    UIView *cardView = [self.delegate cardView:self viewForCardAtIndex:index];
-    [self insertSubview:cardView atIndex:0];
-    [self.visibleCards addObject:cardView];
-    [self _addConstraintsToCardView:cardView];
-    [self _configureCardView:cardView atIndex:index];
-}
-
-- (void)_removeTopCardByAnimationWithFinalPosition:(CGPoint)position completion:(void (^)(void))completion
-{
-    UIView *topCard = self.visibleCards[0];
-    [UIView animateWithDuration:0.25 delay:0.0 options:UIViewAnimationOptionCurveEaseIn animations:^{
-        topCard.center = position;
-    } completion:^(BOOL finished) {
-        [self.visibleCards removeObjectAtIndex:0];
-        [topCard removeFromSuperview];
-        if ([self.delegate respondsToSelector:@selector(cardView:didRemoveTopCard:onDirection:atIndex:)]) {
-            LXCardViewDirection direction = (topCard.center.x > CGRectGetMidX(self.bounds)) ?
-            LXCardViewDirectionRight : LXCardViewDirectionLeft;
-            [self.delegate cardView:self didRemoveTopCard:topCard onDirection:direction atIndex:self.indexOfTopCard];
-        }
-        !completion ?: completion();
-    }];
-}
-
-- (void)_resetTopCard
-{
-    self.userInteractionEnabled = NO;
-    [UIView animateWithDuration:0.5 animations:^{
-        self.visibleCards[0].center = (CGPoint){CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds)};
-    } completion:^(BOOL finished) {
-        self.userInteractionEnabled = YES;
-    }];
-}
-
-- (void)_updateTopCardWithFinalPosition:(CGPoint)finalPosition
-{
-    self.userInteractionEnabled = NO;
-    [self _removeTopCardByAnimationWithFinalPosition:finalPosition completion:^{
-        if (self.indexOfTopCard < self.numberOfCards - 1) {
-            self.indexOfTopCard += 1;
-        }
-        if (self.maxIndexOfVisibleCard < self.numberOfCards - 1) {
-            self.maxIndexOfVisibleCard += 1;
-            [self _insertCardAtIndex:self.maxIndexOfVisibleCard];
-        }
-        [self _configureVisibleCardsByAnimationWithCompletion:^{
-            self.userInteractionEnabled = YES;
-            if (self.visibleCards.count > 0 &&
-                [self.delegate respondsToSelector:@selector(cardView:didDisplayTopCard:atIndex:)]) {
-                [self.delegate cardView:self didDisplayTopCard:self.visibleCards[0] atIndex:self.indexOfTopCard];
-            }
-        }];
-    }];
+	UIView *card = [self.delegate cardView:self viewForCardAtIndex:index];
+	NSAssert(card, @"-[LXCardViewDelegate cardView:viewForCardAtIndex:] 方法不能返回 nil.");
+	[self insertSubview:card atIndex:0];
+	[self.visibleCards addObject:card];
+	return card;
 }
 
 #pragma mark - 配置卡片
 
-- (void)_addConstraintsToCardView:(UIView *)cardView
+- (void)_setupConstraintsForCard:(UIView *)card
 {
-    cardView.translatesAutoresizingMaskIntoConstraints = NO;
-    NSLayoutAttribute attributes[] = { NSLayoutAttributeCenterX, NSLayoutAttributeCenterY };
-    for (int i = 0; i < 2; ++i) {
-        [self addConstraint:[NSLayoutConstraint constraintWithItem:self
-                                                         attribute:attributes[i]
-                                                         relatedBy:NSLayoutRelationEqual
-                                                            toItem:cardView
-                                                         attribute:attributes[i]
-                                                        multiplier:1.0
-                                                          constant:0.0]];
-    }
+	if (card.translatesAutoresizingMaskIntoConstraints) {
+		card.translatesAutoresizingMaskIntoConstraints = NO;
+		CGFloat constants[] = { CGRectGetWidth(card.bounds), CGRectGetHeight(card.bounds) };
+		NSLayoutAttribute attributes[] = { NSLayoutAttributeWidth, NSLayoutAttributeHeight };
+		for (int i = 0; i < 2; ++i) {
+			[NSLayoutConstraint constraintWithItem:card
+										 attribute:attributes[i]
+										 relatedBy:NSLayoutRelationEqual
+											toItem:nil
+										 attribute:attributes[i]
+										multiplier:1
+										  constant:constants[i]].active = YES;
+		}
+
+	}
+	NSLayoutAttribute attributes[] = { NSLayoutAttributeCenterX, NSLayoutAttributeCenterY };
+	for (int i = 0; i < 2; ++i) {
+		[NSLayoutConstraint constraintWithItem:card
+									 attribute:attributes[i]
+									 relatedBy:NSLayoutRelationEqual
+										toItem:self
+									 attribute:attributes[i]
+									multiplier:1
+									  constant:0].active = YES;
+	}
 }
 
-- (void)_configureCardView:(UIView *)cardView atIndex:(NSUInteger)index
+- (void)_configureVisibleCard
 {
-    // 随着索引变化，透明度变化30%，缩放变化10%，向下平移10点
-    cardView.alpha = 1 - 0.3 * index;
-    [cardView.layer setValue:@(1 - 0.1 * index) forKeyPath:@"transform.scale.x"];
-    [cardView.layer setValue:@(10.0 * index) forKeyPath:@"transform.translation.y"];
+	[self.visibleCards enumerateObjectsUsingBlock:^(UIView *obj, NSUInteger idx, BOOL *stop) {
+		[self _configureCard:obj atIndex:idx];
+	}];
 }
 
-#pragma mark - 动画处理
-
-- (void)_configureVisibleCardsByAnimationWithCompletion:(void (^)(void))completion
+- (void)_configureCard:(UIView *)card atIndex:(NSUInteger)index
 {
-    NSUInteger countOfVisibleCards = self.visibleCards.count;
-    NSUInteger maxCountOfVisibleCards = self.maxCountOfVisibleCards;
-    NSUInteger endIndex = countOfVisibleCards - 1;
+	// 随着索引变化，透明度变化 30%，水平缩放变化 10%，向下平移 10点
+	card.alpha = 1 - 0.3 * index;
+	card.transform = CGAffineTransformMake(1 - 0.1 * index, 0, 0, 1, 0, 10.0 * index);
+}
 
-    // 以最大数量卡片显示时，新插入到后方的卡片不要使用动画，直接和前一张卡片重合
-    if (countOfVisibleCards == maxCountOfVisibleCards) {
-        [self _configureCardView:self.visibleCards[endIndex] atIndex:endIndex];
-    }
+#pragma mark - 光栅化
 
-    [UIView animateWithDuration:0.5 animations:^{
-        [self.visibleCards enumerateObjectsUsingBlock:^(UIView * _Nonnull obj,
-                                                        NSUInteger idx,
-                                                        BOOL * _Nonnull stop) {
-            if (idx != endIndex || countOfVisibleCards != maxCountOfVisibleCards) {
-                [self _configureCardView:obj atIndex:idx];
-            }
-        }];
-    } completion:^(BOOL finished) {
-        !completion ?: completion();
-    }];
+- (void)_enableTopCardRasterize
+{
+	UIView *topCard = [self topCard];
+	NSAssert(topCard, @"topCard 不存在.");
+
+	topCard.layer.shouldRasterize = YES;
+	topCard.layer.rasterizationScale = [[UIScreen mainScreen] scale];
+}
+
+- (void)_disableTopCardRasterize
+{
+	UIView *topCard = [self topCard];
+	NSAssert(topCard, @"topCard 不存在.");
+
+	topCard.layer.shouldRasterize = NO;
 }
 
 #pragma mark - 拖拽处理
 
-- (void)setEnablePan:(BOOL)enablePan
-{
-    _enablePan = enablePan;
-
-    self.panGestureRecognizer.enabled = enablePan;
-}
-
 - (void)_panGestureHandle:(UIPanGestureRecognizer *)panGR
 {
-    switch (panGR.state) {
-        case UIGestureRecognizerStateBegan: {
-            UIView *topCardView = self.visibleCards.firstObject;
-            if (!topCardView || !CGRectContainsPoint(topCardView.frame, [panGR locationInView:self])) {
-                panGR.enabled = NO;
-            }
-        } break;
-        case UIGestureRecognizerStateChanged: {
+	switch (panGR.state) {
+		case UIGestureRecognizerStateBegan: {
+			// 顶层卡片不存在，或者触摸点不在顶层卡片上，直接取消手势
+			if (![self topCard] || !CGRectContainsPoint([self topCard].frame, [panGR locationInView:self])) {
+				panGR.enabled = NO;
+			} else {
+				[self _enableTopCardRasterize];
+				[self _setupAttachmentBehaviorForTopCard];
+			}
+		} break;
 
-            UIView *topCard = self.visibleCards[0];
+		case UIGestureRecognizerStateChanged: {
+			[self _updateTopCardPositionByPan];
+		} break;
 
-            CGPoint translation = [panGR translationInView:self];
-            [panGR setTranslation:CGPointZero inView:self];
+		case UIGestureRecognizerStateEnded:
+		case UIGestureRecognizerStateCancelled: {
+			// 手势被手动取消了
+			if (!panGR.isEnabled) {
+				panGR.enabled = YES;
+				break;
+			}
 
-            CGPoint center = ({
-                CGPoint center = topCard.center;
-                center.x += translation.x;
-                center.y += translation.y;
-                center;
-            });
+			[self _removeAllBehaviors];
 
-            topCard.center = center;
+			UIView *topCard = [self topCard];
+			NSAssert(topCard, @"topCard 不存在.");
 
-            if ([self.delegate respondsToSelector:@selector(topCard:didChangeCenterOffset:inCardView:)]) {
-                CGPoint offset = {
-                    center.x - CGRectGetMidX(self.bounds),
-                    center.y - CGRectGetMidY(self.bounds)
-                };
-                [self.delegate topCard:topCard didChangeCenterOffset:offset inCardView:self];
-            }
+			CGPoint currentPosition = topCard.layer.presentationLayer.position;
+			CGPoint originalPosition = { CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds) };
+			CGFloat offsetH = ABS(currentPosition.x - originalPosition.x);
+			CGFloat offsetV = ABS(currentPosition.y - originalPosition.y);
+			UIOffset maxOffset = {
+				self.maxOffset.horizontal > 0 ? self.maxOffset.horizontal : CGRectGetWidth(topCard.bounds) / 2,
+				self.maxOffset.vertical > 0 ? self.maxOffset.vertical : CGRectGetHeight(topCard.bounds) / 2,
+			};
 
-        } break;
-        case UIGestureRecognizerStateEnded:
-        case UIGestureRecognizerStateCancelled: {
+			CGPoint velocity = [panGR velocityInView:self];
+			CGFloat speed = sqrt(pow(velocity.x, 2) + pow(velocity.y, 2));
 
-            if (!panGR.isEnabled) {
-                panGR.enabled = YES;
-                break;
-            }
+			if (speed > kThrowingSpeedThreshold) {
+				UIDynamicItemBehavior *dynamicItemBehavior = [[UIDynamicItemBehavior alloc] initWithItems:@[topCard]];
+				[dynamicItemBehavior addLinearVelocity:velocity forItem:topCard];
+				[self _throwTopCardWithDynamicBehavior:dynamicItemBehavior];
+			}
+			else if (offsetH > maxOffset.horizontal || maxOffset.vertical < offsetV) {
+				CGVector vector = { currentPosition.x - originalPosition.x, currentPosition.y - originalPosition.y };
+				UIPushBehavior *pushBehavior = [[UIPushBehavior alloc] initWithItems:@[topCard] mode:UIPushBehaviorModeInstantaneous];
+				pushBehavior.pushDirection = vector;
+				[self _throwTopCardWithDynamicBehavior:pushBehavior];
+			}
+			else {
+				[self _resetTopCard];
+			}
+		} break;
 
-            UIView *topCard = self.visibleCards[0];
+		default: break;
+	}
+}
 
-            CGPoint currentCenter = topCard.center;
-            CGPoint originalCenter = { CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds) };
+- (void)_setupAttachmentBehaviorForTopCard
+{
+	UIView *topCard = [self topCard];
+	NSAssert(topCard, @"topCard 不存在.");
 
-            CGFloat offsetX = ABS(currentCenter.x - originalCenter.x);
-            CGFloat maxOffsetX = self.maxOffsetXForTopCard > 0 ?
-            self.maxOffsetXForTopCard :
-            CGRectGetWidth(topCard.bounds) / 2;
+	CGPoint location = [self.panGestureRecognizer locationInView:self];
+	CGPoint locationInCard = [self.panGestureRecognizer locationInView:topCard];
+	CGPoint position = CGPointMake(CGRectGetMidX(topCard.bounds), CGRectGetMidY(topCard.bounds));
+	UIOffset offset = UIOffsetMake(locationInCard.x - position.x, locationInCard.y - position.y);
 
-            if (offsetX > maxOffsetX) {
+	[self.dynamicAnimator removeAllBehaviors];
+	self.attachmentBehavior = [[UIAttachmentBehavior alloc] initWithItem:topCard offsetFromCenter:offset attachedToAnchor:location];
+	[self.dynamicAnimator addBehavior:self.attachmentBehavior];
+}
 
-                // 在水平方向上，令顶层卡片刚好能离开父视图范围，并根据其当前中心点与原始中心点的连线确定最终的y坐标
-                CGFloat factor = (currentCenter.x < originalCenter.x) ? -1.0 : 1.0;
-                CGFloat horizontalDistance = (CGRectGetWidth(self.bounds) + CGRectGetWidth(topCard.bounds)) / 2;
+- (void)_updateTopCardPositionByPan
+{
+	UIView *topCard = [self topCard];
+	NSAssert(topCard, @"topCard 不存在.");
+	NSAssert(self.attachmentBehavior, @"attachmentBehavior 属性为 nil.");
+	NSAssert(self.dynamicAnimator.behaviors.count == 1, @"尚有其他 Dynamic Behavior.");
+	NSAssert(self.dynamicAnimator.behaviors[0] == self.attachmentBehavior, @"尚未添加 Attachment Behavior.");
 
-                CGPoint finalCenter;
-                finalCenter.x = originalCenter.x + factor * horizontalDistance;
-                finalCenter.y = factor * horizontalDistance * (currentCenter.y - originalCenter.y)
-                / (currentCenter.x - originalCenter.x) + originalCenter.y;
+	CGPoint translation = [self.panGestureRecognizer translationInView:self];
+	CGPoint location = [self.panGestureRecognizer locationInView:self];
+	self.attachmentBehavior.anchorPoint = location;
 
-                [self _updateTopCardWithFinalPosition:finalCenter];
+	if ([self.delegate respondsToSelector:@selector(cardView:didDragTopCard:anchorPoint:translation:)]) {
+		[self.delegate cardView:self didDragTopCard:topCard anchorPoint:location translation:translation];
+	}
+}
 
-            } else {
+- (void)_removeAllBehaviors
+{
+	self.attachmentBehavior = nil;
+	[self.dynamicAnimator removeAllBehaviors];
+}
 
-                if ([self.delegate respondsToSelector:@selector(topCard:didChangeCenterOffset:inCardView:)]) {
-                    [self.delegate topCard:topCard didChangeCenterOffset:CGPointZero inCardView:self];
-                }
+#pragma mark - 复原卡片
 
-                [self _resetTopCard];
-            }
-        } break;
-        default: break;
-    }
+- (void)_resetTopCard
+{
+	UIView *topCard = [self topCard];
+	NSAssert(topCard, @"topCard 不存在.");
+	NSAssert(self.dynamicAnimator.behaviors.count == 0, @"尚未清空 Dynamic Behavior.");
+
+	self.userInteractionEnabled = NO;
+
+	if ([self.delegate respondsToSelector:@selector(cardView:willResetTopCard:)]) {
+		[self.delegate cardView:self willResetTopCard:topCard];
+	}
+
+	topCard.center = topCard.layer.presentationLayer.position;
+	[UIView animateWithDuration:kResetAnimationDuration animations:^{
+		topCard.transform = CGAffineTransformIdentity;
+		topCard.center = (CGPoint){CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds)};
+	} completion:^(BOOL finished) {
+		[self _disableTopCardRasterize];
+		self.userInteractionEnabled = YES;
+		if ([self.delegate respondsToSelector:@selector(cardView:didResetTopCard:)]) {
+			[self.delegate cardView:self didResetTopCard:topCard];
+		}
+	}];
+}
+
+#pragma mark - 移除卡片
+
+- (void)_throwTopCardWithDynamicBehavior:(UIDynamicBehavior *)dynamicBehavior
+{
+	UIView *topCard = [self topCard];
+	NSAssert(topCard, @"topCard 不存在.");
+	NSAssert(self.dynamicAnimator.behaviors.count == 0, @"尚未清空 Dynamic Behavior.");
+
+	topCard.center = topCard.layer.presentationLayer.position;
+
+	self.userInteractionEnabled = NO;
+
+	__block int count = 0;
+	__weak typeof(self) weakSelf = self;
+	dynamicBehavior.action = ^{
+		__strong typeof(weakSelf) self = weakSelf;
+		// 由于此block调用非常频繁，因此限制一下判断次数
+		if (count++ % 2) {
+			return;
+		}
+		if (!CGRectIntersectsRect(self.bounds, topCard.frame)) {
+			[self _removeAllBehaviors];
+			[self _updateVisibleCardAfterThrow];
+		}
+	};
+
+	[self.dynamicAnimator addBehavior:dynamicBehavior];
+}
+
+- (void)throwTopCardOnDirection:(LXCardViewDirection)direction angle:(CGFloat)angle
+{
+	UIView *topCard = [self topCard];
+	NSAssert(topCard, @"topCard 不存在.");
+
+	CGFloat factorH = (angle < M_PI_2) ? +1.0 : -1.0;
+	CGFloat factorV = (direction == LXCardViewDirectionTop) ? -1.0 : +1.0;
+	CGFloat horizontalDistance = (CGRectGetWidth(self.bounds) + CGRectGetWidth(topCard.bounds)) / 2;
+	CGPoint position = {};
+	position.x = CGRectGetMidX(self.bounds) + factorH * horizontalDistance;
+	position.y = CGRectGetMidY(self.bounds) + factorV * tan(angle) * position.x;
+
+	[self _enableTopCardRasterize];
+
+	self.userInteractionEnabled = NO;
+	[UIView animateWithDuration:0.25 delay:0 options:UIViewAnimationOptionCurveEaseIn animations:^{
+		topCard.center = position;
+	} completion:^(BOOL finished) {
+		if ([self.delegate respondsToSelector:@selector(cardView:didThrowTopCard:)]) {
+			[self.delegate cardView:self didThrowTopCard:topCard];
+		}
+		[self _updateVisibleCardAfterThrow];
+	}];
+	
+}
+
+#pragma mark - 更新卡片
+
+- (void)_updateVisibleCardAfterThrow
+{
+	UIView *topCard = [self topCard];
+	NSAssert(topCard, @"topCard 不存在.");
+
+	[topCard removeFromSuperview];
+	[self _disableTopCardRasterize];
+	[self.visibleCards removeObjectAtIndex:0];
+
+	if (self.countOfVisibleCards == 0) {
+		self.userInteractionEnabled = YES;
+		return;
+	}
+
+	if (self.indexForTopCard < self.numberOfCards - 1) {
+		self.indexForTopCard += 1;
+	}
+
+	if (self.maxIndexForVisibleCard < self.numberOfCards - 1) {
+		self.maxIndexForVisibleCard += 1;
+		[self _setupConstraintsForCard:[self _dequeueCardAndInsertAtIndex:self.maxIndexForVisibleCard]];
+	}
+
+	// 新插入到后方的卡片不要使用动画，直接和前一张卡片重合
+	if (self.countOfVisibleCards == self.maxCountOfVisibleCards) {
+		[self _configureCard:self.visibleCards.lastObject atIndex:self.countOfVisibleCards - 1];
+	}
+
+	[UIView animateWithDuration:kInsertAnimationDuration animations:^{
+		[self.visibleCards enumerateObjectsUsingBlock:^(UIView *obj, NSUInteger idx, BOOL *stop) {
+			[self _configureCard:obj atIndex:idx];
+		}];
+	} completion:^(BOOL finished) {
+		self.userInteractionEnabled = YES;
+		if ([self.delegate respondsToSelector:@selector(cardView:didDisplayTopCard:)]) {
+			[self.delegate cardView:self didDisplayTopCard:[self topCard]];
+		}
+	}];
+}
+
+#pragma mark - 拖拽开关
+
+- (void)setDragEnabled:(BOOL)dragEnabled
+{
+	_dragEnabled = dragEnabled;
+	self.panGestureRecognizer.enabled = dragEnabled;
+}
+
+#pragma mark - 卡片视图信息
+
+- (UIView *)topCard
+{
+	return self.visibleCards.firstObject;
+}
+
+- (NSUInteger)countOfVisibleCards
+{
+	return self.visibleCards.count;
 }
 
 @end

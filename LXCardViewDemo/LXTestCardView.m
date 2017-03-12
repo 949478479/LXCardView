@@ -11,8 +11,6 @@
 @interface LXTestCardView ()
 @property (nonatomic) IBOutlet UIButton *addButton;
 @property (nonatomic) IBOutlet UIButton *removeButton;
-@property (nonatomic) IBOutlet NSLayoutConstraint *widthConstraint;
-@property (nonatomic) IBOutlet NSLayoutConstraint *heightConstraint;
 @end
 
 @implementation LXTestCardView
@@ -38,10 +36,6 @@
     self.addButton.layer.borderWidth = 1;
     self.addButton.layer.borderColor = [UIColor colorWithRed:1.000 green:0.502 blue:0.000 alpha:1.000].CGColor;
     self.addButton.layer.cornerRadius = CGRectGetHeight(self.addButton.bounds) / 2;
-
-    CGSize screenSize = [UIScreen mainScreen].bounds.size;
-    self.widthConstraint.constant = screenSize.width - 40;
-    self.heightConstraint.constant = screenSize.height - 64 - 80;
 }
 
 + (instancetype)cardView

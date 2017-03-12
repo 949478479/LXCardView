@@ -10,6 +10,8 @@
 
 @interface LXTestCardView : UIView
 
+@property (nonatomic) IBOutlet UILabel *indexLabel;
+
 @property (nonatomic) IBOutlet UILabel *addLabel;
 @property (nonatomic) IBOutlet UILabel *removeLabel;
 
