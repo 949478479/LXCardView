@@ -40,29 +40,30 @@
 
 - (NSUInteger)numberOfCardsInCardView:(LXCardView *)cardView
 {
-    return 5;
+    return 10;
 }
 
 - (UIView *)cardView:(LXCardView *)cardView viewForCardAtIndex:(NSUInteger)index
 {
     NSLog(@"%@ - %@", @(__FUNCTION__), @(index));
 
-    LXTestCardView *card = [LXTestCardView cardView];
-
-	card.frame = ({
-		CGSize screenSize = [UIScreen mainScreen].bounds.size;
-		CGRect frame = card.frame;
-		frame.size = CGSizeMake(screenSize.width - 40, screenSize.height - 64 - 80);
-		frame;
-	});
-
-    __weak LXCardView *weakCardView = cardView;
-    card.addAction = ^{
-        [weakCardView throwTopCardOnDirection:LXCardViewDirectionTop angle:M_PI_2 / 2];
-    };
-    card.removeAction = ^{
-        [weakCardView throwTopCardOnDirection:LXCardViewDirectionBottom angle:M_PI_2 * 3 / 2];
-    };
+	LXTestCardView *card = [cardView dequeueReusableCardWithReuseIdentifier:@"LXTestCardView"];
+	if (!card) {
+		card = [LXTestCardView cardView];
+		card.frame = ({
+			CGSize screenSize = [UIScreen mainScreen].bounds.size;
+			CGRect frame = card.frame;
+			frame.size = CGSizeMake(screenSize.width - 40, screenSize.height - 64 - 80);
+			frame;
+		});
+		__weak LXCardView *weakCardView = cardView;
+		card.addAction = ^{
+			[weakCardView throwTopCardOnDirection:LXCardViewDirectionTop angle:M_PI_2 / 2];
+		};
+		card.removeAction = ^{
+			[weakCardView throwTopCardOnDirection:LXCardViewDirectionBottom angle:M_PI_2 * 3 / 2];
+		};
+	}
 
 	card.indexLabel.text = [NSString stringWithFormat:@"%lu", index];
 

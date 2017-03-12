@@ -8,6 +8,8 @@
 
 #import "LXCardView.h"
 
+typedef NSMutableDictionary<NSString *, NSMutableSet<LXReusableCard *> *> LXReusableCardCache;
+
 static CGFloat const kThrowingSpeedThreshold = 1000;
 static NSTimeInterval const kThrowAnimationDuration = 0.25;
 static NSTimeInterval const kResetAnimationDuration = 0.5;
@@ -19,6 +21,7 @@ static NSTimeInterval const kInsertAnimationDuration = 0.5;
 @property (nonatomic) NSUInteger indexForTopCard;
 @property (nonatomic) NSUInteger maxIndexForVisibleCard;
 @property (nonatomic) NSMutableArray<UIView *> *visibleCards;
+@property (nonatomic) LXReusableCardCache *reusableCardCache;
 
 @property (nonatomic) UIDynamicAnimator *dynamicAnimator;
 @property (nonatomic) UIAttachmentBehavior *attachmentBehavior;
@@ -53,6 +56,7 @@ static NSTimeInterval const kInsertAnimationDuration = 0.5;
 	_dragEnabled = YES;
     _maxCountOfVisibleCards = 3;
     _visibleCards = [NSMutableArray new];
+	_reusableCardCache = [NSMutableDictionary new];
 
     _panGestureRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(_panGestureHandle:)];
     [self addGestureRecognizer:_panGestureRecognizer];
@@ -67,6 +71,7 @@ static NSTimeInterval const kInsertAnimationDuration = 0.5;
 {
     [self.visibleCards makeObjectsPerformSelector:@selector(removeFromSuperview)];
     [self.visibleCards removeAllObjects];
+	[self.reusableCardCache removeAllObjects];
 
     self.numberOfCards = [self.delegate numberOfCardsInCardView:self];
     NSUInteger countOfVisibleCards = MIN(self.numberOfCards, self.maxCountOfVisibleCards);
@@ -77,7 +82,7 @@ static NSTimeInterval const kInsertAnimationDuration = 0.5;
     }
 
 	for (NSUInteger idx = 0; idx < countOfVisibleCards; ++idx) {
-		[self _setupConstraintsForCard:[self _dequeueCardAndInsertAtIndex:idx]];
+		[self _setupConstraintsForCard:[self _getAndAppendCardForIndex:idx]];
 	}
 
 	self.indexForTopCard = 0;
@@ -93,12 +98,30 @@ static NSTimeInterval const kInsertAnimationDuration = 0.5;
 
 #pragma mark - 创建卡片
 
-- (UIView *)_dequeueCardAndInsertAtIndex:(NSUInteger)index
+- (UIView *)_getAndAppendCardForIndex:(NSUInteger)index
 {
 	UIView *card = [self.delegate cardView:self viewForCardAtIndex:index];
 	NSAssert(card, @"-[LXCardViewDelegate cardView:viewForCardAtIndex:] 方法不能返回 nil.");
 	[self insertSubview:card atIndex:0];
 	[self.visibleCards addObject:card];
+	return card;
+}
+
+- (LXReusableCard *)dequeueReusableCardWithReuseIdentifier:(NSString *)identifier
+{
+	NSMutableSet<LXReusableCard *> *cacheForIdentifier = self.reusableCardCache[identifier];
+
+	if (!cacheForIdentifier) {
+		return nil;
+	}
+
+	if (cacheForIdentifier.count == 0) {
+		return nil;
+	}
+
+	LXReusableCard *card = [cacheForIdentifier anyObject];
+	[card prepareForReuse];
+	[cacheForIdentifier removeObject:card];
 	return card;
 }
 
@@ -147,7 +170,7 @@ static NSTimeInterval const kInsertAnimationDuration = 0.5;
 	card.transform = CGAffineTransformMake(1 - 0.1 * index, 0, 0, 1, 0, 10.0 * index);
 }
 
-#pragma mark - 光栅化
+#pragma mark - 卡片光栅化
 
 - (void)_enableTopCardRasterize
 {
@@ -317,6 +340,7 @@ static NSTimeInterval const kInsertAnimationDuration = 0.5;
 		}
 		if (!CGRectIntersectsRect(self.bounds, topCard.frame)) {
 			[self _removeAllBehaviors];
+			[self _recycleThrowedCard];
 			[self _updateVisibleCardAfterThrow];
 		}
 	};
@@ -345,9 +369,25 @@ static NSTimeInterval const kInsertAnimationDuration = 0.5;
 		if ([self.delegate respondsToSelector:@selector(cardView:didThrowTopCard:)]) {
 			[self.delegate cardView:self didThrowTopCard:topCard];
 		}
+		[self _recycleThrowedCard];
 		[self _updateVisibleCardAfterThrow];
 	}];
 	
+}
+
+#pragma mark - 回收卡片
+
+- (void)_recycleThrowedCard
+{
+	LXReusableCard *topCard = [self topCard];
+	NSAssert(topCard, @"topCard 不存在.");
+
+	NSMutableSet<LXReusableCard *> *cacheForIdentifier = self.reusableCardCache[topCard.reuseIdentifier];
+	if (!cacheForIdentifier) {
+		cacheForIdentifier = [NSMutableSet new];
+		self.reusableCardCache[topCard.reuseIdentifier] = cacheForIdentifier;
+	}
+	[cacheForIdentifier addObject:topCard];
 }
 
 #pragma mark - 更新卡片
@@ -372,7 +412,7 @@ static NSTimeInterval const kInsertAnimationDuration = 0.5;
 
 	if (self.maxIndexForVisibleCard < self.numberOfCards - 1) {
 		self.maxIndexForVisibleCard += 1;
-		[self _setupConstraintsForCard:[self _dequeueCardAndInsertAtIndex:self.maxIndexForVisibleCard]];
+		[self _setupConstraintsForCard:[self _getAndAppendCardForIndex:self.maxIndexForVisibleCard]];
 	}
 
 	// 新插入到后方的卡片不要使用动画，直接和前一张卡片重合
@@ -400,7 +440,7 @@ static NSTimeInterval const kInsertAnimationDuration = 0.5;
 	self.panGestureRecognizer.enabled = dragEnabled;
 }
 
-#pragma mark - 卡片视图信息
+#pragma mark - 卡片信息
 
 - (UIView *)topCard
 {

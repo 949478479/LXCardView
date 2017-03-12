@@ -16,6 +16,15 @@ typedef NS_ENUM(NSUInteger, LXCardViewDirection) {
 	LXCardViewDirectionBottom,
 };
 
+@protocol LXCardViewReusableCard <NSObject>
+/// 重用标识符
+@property (nonatomic, readonly) NSString *reuseIdentifier;
+/// 卡片即将重用
+- (void)prepareForReuse;
+@end
+
+typedef UIView<LXCardViewReusableCard> LXReusableCard;
+
 @protocol LXCardViewDelegate <NSObject>
 
 @required
@@ -23,7 +32,7 @@ typedef NS_ENUM(NSUInteger, LXCardViewDirection) {
 /// 卡片总数量，若返回零，则不显示任何卡片
 - (NSUInteger)numberOfCardsInCardView:(LXCardView *)cardView;
 /// 索引位置卡片所对应的视图
-- (UIView *)cardView:(LXCardView *)cardView viewForCardAtIndex:(NSUInteger)index;
+- (LXReusableCard *)cardView:(LXCardView *)cardView viewForCardAtIndex:(NSUInteger)index;
 
 @optional
 
@@ -53,6 +62,8 @@ typedef NS_ENUM(NSUInteger, LXCardViewDirection) {
 
 /// 刷新数据，需主动调用
 - (void)reloadData;
+/// 根据重用标识符返回一个可重用的卡片
+- (nullable __kindof LXReusableCard *)dequeueReusableCardWithReuseIdentifier:(NSString *)identifier;
 
 /**
  沿指定方向扔出顶层卡片
@@ -62,12 +73,12 @@ typedef NS_ENUM(NSUInteger, LXCardViewDirection) {
  */
 - (void)throwTopCardOnDirection:(LXCardViewDirection)direction angle:(CGFloat)angle;
 
-/// 顶层卡片
-- (nullable UIView *)topCard;
 /// 顶层卡片的索引
 - (NSUInteger)indexForTopCard;
 /// 屏幕上可见卡片数量
 - (NSUInteger)countOfVisibleCards;
+/// 顶层卡片
+- (nullable LXReusableCard *)topCard;
 
 @end
 

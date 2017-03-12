@@ -197,6 +197,9 @@
                 <constraint firstItem="oHe-iI-oNS" firstAttribute="top" secondItem="6ZD-aH-B1y" secondAttribute="top" constant="40" id="wnk-Hp-lig"/>
             </constraints>
             <freeformSimulatedSizeMetrics key="simulatedDestinationMetrics"/>
+            <userDefinedRuntimeAttributes>
+                <userDefinedRuntimeAttribute type="string" keyPath="reuseIdentifier" value="LXTestCardView"/>
+            </userDefinedRuntimeAttributes>
             <connections>
                 <outlet property="addButton" destination="fV6-2N-u5V" id="bkq-SM-SiM"/>
                 <outlet property="addLabel" destination="oHe-iI-oNS" id="Akd-PB-Fcr"/>

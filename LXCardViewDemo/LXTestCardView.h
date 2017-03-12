@@ -7,8 +7,9 @@
 //
 
 #import <UIKit/UIKit.h>
+#import "LXCardView.h"
 
-@interface LXTestCardView : UIView
+@interface LXTestCardView : UIView <LXCardViewReusableCard>
 
 @property (nonatomic) IBOutlet UILabel *indexLabel;
 
@@ -17,6 +18,10 @@
 
 @property (nonatomic) void (^addAction)(void);
 @property (nonatomic) void (^removeAction)(void);
+
+@property (nonatomic, readonly) NSString *reuseIdentifier;
+
+- (void)prepareForReuse;
 
 + (instancetype)cardView;
 

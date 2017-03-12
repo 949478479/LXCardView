@@ -9,8 +9,12 @@
 #import "LXTestCardView.h"
 
 @interface LXTestCardView ()
+
+@property (nonatomic) IBInspectable NSString *reuseIdentifier;
+
 @property (nonatomic) IBOutlet UIButton *addButton;
 @property (nonatomic) IBOutlet UIButton *removeButton;
+
 @end
 
 @implementation LXTestCardView
@@ -18,6 +22,8 @@
 - (void)awakeFromNib
 {
     [super awakeFromNib];
+
+	NSLog(@"%@", @(__FUNCTION__));
 
     self.layer.cornerRadius = 10;
 
@@ -51,6 +57,12 @@
 - (IBAction)removeAction:(id)sender
 {
     !self.removeAction ?: self.removeAction();
+}
+
+- (void)prepareForReuse
+{
+	self.addLabel.alpha = 0;
+	self.removeLabel.alpha = 0;
 }
 
 @end
