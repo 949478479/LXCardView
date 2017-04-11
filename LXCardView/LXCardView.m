@@ -363,7 +363,7 @@ static NSTimeInterval const kInsertAnimationDuration = 0.5;
 	[self _enableTopCardRasterize];
 
 	self.userInteractionEnabled = NO;
-	[UIView animateWithDuration:0.25 delay:0 options:UIViewAnimationOptionCurveEaseIn animations:^{
+	[UIView animateWithDuration:kThrowAnimationDuration delay:0 options:UIViewAnimationOptionCurveEaseIn animations:^{
 		topCard.center = position;
 	} completion:^(BOOL finished) {
 		if ([self.delegate respondsToSelector:@selector(cardView:didThrowTopCard:)]) {
